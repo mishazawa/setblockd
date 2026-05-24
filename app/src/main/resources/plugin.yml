@@ -1,0 +1,14 @@
+name: SetBlockPlugin
+version: 1.0.0
+main: setblockd.SetBlockPlugin
+description: Voxel printer
+author: mishazawa
+website: https://papermc.io
+api-version: "26.1.2"
+commands:
+  command:
+    description: "This is a command"
+    usage: "/setblockd <arg> <arg>"
+    aliases: [sbd, blockd]
+    permission: permission.node
+    permission-message: "You do not have permission to use this command"
