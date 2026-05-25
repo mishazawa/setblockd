@@ -1,0 +1,52 @@
+### csv valid
+POST http://localhost:8082/setblockd
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: csv
+X-World-Name: world
+
+< ./test_data/1.csv
+
+### bin valid
+
+POST http://localhost:8082/setblockd
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: bin
+X-World-Name: world
+
+< ./test_data/2.dat
+
+### get worlds
+
+GET http://localhost:8082/worlds
+
+### invalid csv
+
+POST http://localhost:8082/setblockd
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: csv
+X-World-Name: world
+
+< ./test_data/2.dat
+
+### invalid bin
+
+POST http://localhost:8082/setblockd
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: bin
+X-World-Name: world
+
+< ./test_data/1.csv
+
+### empty bin
+
+POST http://localhost:8082/setblockd
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: bin
+X-World-Name: world
+
+< ./test_data/0.csv
