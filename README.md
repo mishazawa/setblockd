@@ -28,7 +28,7 @@ x,y,z,material
 ...
 ...
 ```
-Example generator code:
+Example generator: [wiki/Example-binary-generator](https://github.com/mishazawa/setblockd/wiki/Example-binary-generator)
 
 ## API
 
