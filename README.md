@@ -9,6 +9,14 @@ network:
 ```
 
 ## Fileformat
+```
+Bounding Box: 201x191x221.
+Total blocks in payload: 8484411 (2169791 explicit, 6314620 skipped).
+Palette size: 1 unique materials.
+¯\_(ツ)_/¯
+```
+<img width="469" height="49" alt="image" src="https://github.com/user-attachments/assets/7a2814a0-00ad-4057-b894-53475d8faa38" />
+
 
 ### csv
 ```csv
