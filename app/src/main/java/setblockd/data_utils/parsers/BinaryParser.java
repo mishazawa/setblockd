@@ -1,5 +1,8 @@
 package setblockd.data_utils.parsers;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -8,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 import org.bukkit.Material;
 
@@ -61,12 +65,17 @@ public class BinaryParser implements StructureParser {
       palette[i] = mat;
     }
 
+    int compressedLength = buffer.getInt();
+    byte[] compressedBytes = new byte[compressedLength];
+    buffer.get(compressedBytes);
+
+    short[] blocks = this.decompressGrid(compressedBytes);
     long totalBlocks = (long) sizeX * sizeY * sizeZ;
     int layerSize = sizeX * sizeZ;
     Map<ChunkPos, List<StructureBlock>> chunkMap = new HashMap<>();
 
-    for (long i = 0; i < totalBlocks; i++) {
-      short paletteIndex = buffer.getShort();
+    for (int i = 0; i < totalBlocks; i++) {
+      short paletteIndex = blocks[i];
       if (paletteIndex == -1) {
         continue;
       }
@@ -93,4 +102,30 @@ public class BinaryParser implements StructureParser {
     return chunkMap;
   }
 
+  private short[] decompressGrid(byte[] data) throws IOException {
+    try (ByteArrayInputStream bais = new ByteArrayInputStream(data);
+        GZIPInputStream gzipis = new GZIPInputStream(bais);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+      byte[] buffer = new byte[4096];
+
+      int bytesRead;
+      while ((bytesRead = gzipis.read(buffer)) != -1) {
+        baos.write(buffer, 0, bytesRead);
+      }
+
+      byte[] uncompressedBytes = baos.toByteArray();
+
+      int totalBlocks = uncompressedBytes.length / 2;
+      short[] grid = new short[totalBlocks];
+
+      ByteBuffer byteBuffer = ByteBuffer.wrap(uncompressedBytes);
+      byteBuffer.order(ByteOrder.BIG_ENDIAN); // python '>' format
+
+      for (int i = 0; i < totalBlocks; i++) {
+        grid[i] = byteBuffer.getShort();
+      }
+
+      return grid;
+    }
+  }
 }
