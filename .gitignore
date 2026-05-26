@@ -32,3 +32,4 @@ replay_pid*
 .server
 
 test_data/
+.DS_Store

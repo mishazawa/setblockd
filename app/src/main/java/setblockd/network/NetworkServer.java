@@ -45,7 +45,7 @@ public class NetworkServer {
     server.setExecutor(virtualThreadExecutor);
 
     server.createContext("/worlds", this::getWorldsNames);
-    server.createContext("/setblockd", this::receiveBlocks);
+    server.createContext("/setblock", this::receiveBlocks);
 
     server.start();
     logger.info("listening on port " + port);

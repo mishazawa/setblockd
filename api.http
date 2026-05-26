@@ -1,5 +1,5 @@
 ### csv valid
-POST http://localhost:8082/setblockd
+POST http://localhost:8082/setblock
 Authorization: Basic user:password
 content-type: application/octet-stream
 X-Payload-Type: csv
@@ -9,7 +9,7 @@ X-World-Name: world
 
 ### bin valid
 
-POST http://localhost:8082/setblockd
+POST http://localhost:8082/setblock
 Authorization: Basic user:password
 content-type: application/octet-stream
 X-Payload-Type: bin
@@ -23,7 +23,7 @@ GET http://localhost:8082/worlds
 
 ### invalid csv
 
-POST http://localhost:8082/setblockd
+POST http://localhost:8082/setblock
 Authorization: Basic user:password
 content-type: application/octet-stream
 X-Payload-Type: csv
@@ -33,7 +33,7 @@ X-World-Name: world
 
 ### invalid bin
 
-POST http://localhost:8082/setblockd
+POST http://localhost:8082/setblock
 Authorization: Basic user:password
 content-type: application/octet-stream
 X-Payload-Type: bin
@@ -43,7 +43,7 @@ X-World-Name: world
 
 ### empty bin
 
-POST http://localhost:8082/setblockd
+POST http://localhost:8082/setblock
 Authorization: Basic user:password
 content-type: application/octet-stream
 X-Payload-Type: bin

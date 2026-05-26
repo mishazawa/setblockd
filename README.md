@@ -21,13 +21,35 @@ x,y,z,material
 
 ### binary
 ```
-[magic_number: BLKS]
-[int: blocks number]
-[int: x][int: y][int: z]
-[short: string len][string: material]
-...
-...
+[magic_number: 4 bytes]    "BLKS"
+[byte: format_version]     Currently 1 (0x01)
+[int: origin_x]            Minimum X coordinate in the world
+[int: origin_y]            Minimum Y coordinate in the world
+[int: origin_z]            Minimum Z coordinate in the world
+[int: size_x]              Width of the structure
+[int: size_y]              Height of the structure
+[int: size_z]              Depth of the structure
+[int: palette_length]      Number of unique materials in the palette
+
+--- PALETTE DATA (Repeats `palette_length` times) ---
+[short: string_length]     Byte length of the following string
+[string: material_name]    UTF-8 encoded string (e.g., "minecraft:stone")
+... (loops for each material)
+
+--- BLOCK DATA (Repeats `size_x * size_y * size_z` times) ---
+[short: palette_index]     Index pointing to the palette array (0 to palette_length - 1)
+                           * Note: A value of -1 means "Skip"
+... (loops for every block in the 3D grid)
 ```
+#### Notes:
+- **Endianness**: All numbers (int, short) must be encoded in Big-Endian
+
+- **Block Iteration Order**: The 1D block array maps to the 3D grid with **X changing fastest**, then Z, then Y.
+
+- **Skip Flag**: A short value of -1 (0xFFFF) for empty space where the world should not be modified
+
+- **Air vs. Skip**: To replace a block with Air, minecraft:air must be added to the palette, and its corresponding valid index (e.g., 0) should be written to the Block Data
+
 Example generator: [wiki/Example-binary-generator](https://github.com/mishazawa/setblockd/wiki/Example-binary-generator)
 
 ## API
@@ -50,7 +72,7 @@ GET <HOST>:<PORT>/worlds
 
 #### Request
 ```
-POST <HOST>:<PORT>/setblockd
+POST <HOST>:<PORT>/setblock
 Authorization: Basic # user:password from config
 Content-Type: application/octet-stream
 X-Payload-Type: # "bin" or "csv"
