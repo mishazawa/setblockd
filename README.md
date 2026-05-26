@@ -36,10 +36,10 @@ x,y,z,material
 [string: material_name]    UTF-8 encoded string (e.g., "minecraft:stone")
 ... (loops for each material)
 
---- BLOCK DATA (Repeats `size_x * size_y * size_z` times) ---
-[short: palette_index]     Index pointing to the palette array (0 to palette_length - 1)
-                           * Note: A value of -1 means "Skip"
-... (loops for every block in the 3D grid)
+--- BLOCK DATA ---
+[int: compressed_size] The length  of the GZIP payload
+[bytes: gzip_payload]  The compressed byte stream
+
 ```
 #### Notes:
 - **Endianness**: All numbers (int, short) must be encoded in Big-Endian
