@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: all server build gen-data
+.PHONY: all server build gen-data palette
 
 
 all: build server
@@ -15,4 +15,9 @@ build:
 
 gen-data:
 	@echo "==> Generating binary test data..."
-	python ./test_data/gen_bin.py
+	python ./utils/binary_generator.py
+
+palette:
+	@echo "==> Generating palette..."
+	python ./utils/download_sprites.py ./test_data/concrete.txt -o ./test_data/blocks
+	go run ./utils/average_color.go ./test_data/blocks > ./test_data/blocks/average.csv
