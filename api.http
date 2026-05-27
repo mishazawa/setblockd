@@ -60,3 +60,13 @@ X-Payload-Type: bin
 X-World-Name: world
 
 < ./test_data/output.dat
+
+### request chunk
+
+GET http://localhost:8082/getblock
+?world_name=world
+&minx=0
+&minz=0
+&sizex=20
+&sizez=20
+Authorization: Basic user:password

@@ -7,6 +7,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -15,8 +16,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import setblockd.data_utils.ParserContext;
+import setblockd.data_utils.StreamContext;
 import setblockd.data_utils.parsers.BinaryParser;
 import setblockd.data_utils.parsers.CsvParser;
+import setblockd.world.BlockGrabber;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -26,15 +29,18 @@ public class NetworkServer {
   private final Logger logger;
   private final int port;
   private final PayloadReceiver payloadReceiver;
+  private final PayloadStreamer payloadStreamer;
 
   private HttpServer server;
   private ExecutorService virtualThreadExecutor;
   private final String expectedAuthHeader;
 
-  public NetworkServer(Logger logger, int port, String expectedAuthHeader, PayloadReceiver payloadReceiver) {
+  public NetworkServer(Logger logger, int port, String expectedAuthHeader, PayloadReceiver payloadReceiver,
+      PayloadStreamer payloadStreamer) {
     this.logger = logger;
     this.port = port;
     this.payloadReceiver = payloadReceiver;
+    this.payloadStreamer = payloadStreamer;
     this.expectedAuthHeader = expectedAuthHeader;
   }
 
@@ -46,6 +52,7 @@ public class NetworkServer {
 
     server.createContext("/worlds", this::getWorldsNames);
     server.createContext("/setblock", this::receiveBlocks);
+    server.createContext("/getblock", this::sendBlocks);
 
     server.start();
     logger.info("listening on port " + port);
@@ -62,20 +69,8 @@ public class NetworkServer {
   }
 
   private void receiveBlocks(HttpExchange exchange) throws IOException {
-    if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-      exchange.sendResponseHeaders(405, -1);
-      exchange.close();
+    if (gatekeepRequest("POST", exchange))
       return;
-    }
-
-    String providedAuth = exchange.getRequestHeaders().getFirst("Authorization");
-    if (providedAuth == null || !isAuthorized(providedAuth)) {
-      exchange.getResponseHeaders().set("WWW-Authenticate", "Basic realm=\"setblockd\"");
-      exchange.sendResponseHeaders(401, -1);
-      exchange.close();
-      logger.warn("Unauthorized structure upload attempt from {}", exchange.getRemoteAddress());
-      return;
-    }
 
     String payloadType = exchange.getRequestHeaders().getFirst("X-Payload-Type");
 
@@ -131,6 +126,23 @@ public class NetworkServer {
     return MessageDigest.isEqual(expected, provided);
   }
 
+  private boolean gatekeepRequest(String method, HttpExchange exchange) throws IOException {
+    if (!method.equalsIgnoreCase(exchange.getRequestMethod())) {
+      exchange.sendResponseHeaders(405, -1);
+      exchange.close();
+      return true;
+    }
+    String providedAuth = exchange.getRequestHeaders().getFirst("Authorization");
+    if (providedAuth == null || !isAuthorized(providedAuth)) {
+      exchange.getResponseHeaders().set("WWW-Authenticate", "Basic realm=\"setblockd\"");
+      exchange.sendResponseHeaders(401, -1);
+      exchange.close();
+      logger.warn("Unauthorized structure upload attempt from {}", exchange.getRemoteAddress());
+      return true;
+    }
+    return false;
+  }
+
   private void getWorldsNames(HttpExchange exchange) throws IOException {
     if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
       exchange.sendResponseHeaders(405, -1);
@@ -151,6 +163,56 @@ public class NetworkServer {
 
     try (OutputStream os = exchange.getResponseBody()) {
       os.write(jsonResponse.getBytes());
+    }
+  }
+
+  private void sendBlocks(HttpExchange exchange) throws IOException {
+    if (gatekeepRequest("GET", exchange))
+      return;
+
+    String query = exchange.getRequestURI().getQuery();
+    Map<String, String> params = UrlUtils.parseQueryString(query);
+
+    if (!params.containsKey("minx") ||
+        !params.containsKey("minz") ||
+        !params.containsKey("sizex") ||
+        !params.containsKey("sizez") ||
+        !params.containsKey("world_name")) {
+      exchange.sendResponseHeaders(405, -1);
+      exchange.close();
+      return;
+    }
+
+    try {
+      String worldName = params.get("world_name");
+      int minX = Integer.parseInt(params.get("minx"));
+      int minZ = Integer.parseInt(params.get("minz"));
+      int sizeX = Integer.parseInt(params.get("sizex"));
+      int sizeZ = Integer.parseInt(params.get("sizez"));
+      int maxX = minX + sizeX - 1;
+      int maxZ = minZ + sizeZ - 1;
+
+      exchange.getResponseHeaders().set("Content-Type", "application/octet-stream");
+      // 0 = Chunked Transfer Encoding
+      exchange.sendResponseHeaders(200, 0);
+      OutputStream outputStream = exchange.getResponseBody();
+
+      payloadStreamer.streamPayload(
+          outputStream,
+          new StreamContext(worldName, minX, minZ, maxX, maxZ)).thenRun(() -> {
+            try {
+              outputStream.close();
+              exchange.close();
+            } catch (Exception e) {
+              e.printStackTrace();
+            }
+          });
+
+    } catch (NumberFormatException e) {
+      exchange.sendResponseHeaders(400, -1);
+    } catch (Exception e) {
+      e.printStackTrace();
+      exchange.sendResponseHeaders(500, -1);
     }
   }
 }

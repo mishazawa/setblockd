@@ -2,6 +2,7 @@ package setblockd;
 
 import net.kyori.adventure.text.Component;
 import setblockd.network.NetworkServer;
+import setblockd.world.BlockGrabber;
 import setblockd.world.BlockPlacer;
 
 import java.util.Base64;
@@ -15,7 +16,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class SetBlockPlugin extends JavaPlugin implements Listener {
     private NetworkServer server;
-    private BlockPlacer blockManager;
+    private BlockPlacer placer;
+    private BlockGrabber grabber;
 
     @Override
     public void onEnable() {
@@ -23,7 +25,8 @@ public class SetBlockPlugin extends JavaPlugin implements Listener {
 
         var logger = getSLF4JLogger();
 
-        this.blockManager = new BlockPlacer(getLogger());
+        this.placer = new BlockPlacer(getLogger());
+        this.grabber = new BlockGrabber(getLogger());
         saveDefaultConfig();
 
         int port = getConfig().getInt("network.port", 8080);
@@ -44,7 +47,7 @@ public class SetBlockPlugin extends JavaPlugin implements Listener {
         String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
         String expectedAuthHeader = "Basic " + encodedCredentials;
 
-        server = new NetworkServer(logger, port, expectedAuthHeader, blockManager);
+        server = new NetworkServer(logger, port, expectedAuthHeader, placer, grabber);
 
         try {
             server.start();
