@@ -40,8 +40,12 @@ public class BlockPlacer implements PayloadReceiver {
       world.getChunkAtAsync(chunkPos.x(), chunkPos.z(), true)
           .thenAccept(chunk -> {
             for (StructureBlock b : blocksInChunk) {
-              world.getBlockAt(b.x(), b.y(), b.z()).setType(b.material(), false);
+              // relative coordinates
+              int relX = b.x() & 15;
+              int relZ = b.z() & 15;
+              chunk.getBlock(relX, b.y(), relZ).setType(b.material(), false);
             }
+            world.refreshChunk(chunkPos.x(), chunkPos.z());
           })
           .exceptionally(ex -> {
             logger.warning("Error");

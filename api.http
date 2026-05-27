@@ -50,3 +50,13 @@ X-Payload-Type: bin
 X-World-Name: world
 
 < ./test_data/0.csv
+
+### bin valid
+
+POST http://localhost:8082/setblock
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: bin
+X-World-Name: world
+
+< ./test_data/output.dat
