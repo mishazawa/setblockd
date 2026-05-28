@@ -220,12 +220,28 @@ public class NetworkServer {
       payloadStreamer.streamPayload(
           outputStream,
           new GrabberContext(worldName, minX, minZ, maxX, maxZ),
-          ec).thenRun(() -> {
+          ec).whenComplete((result, exception) -> {
+            if (exception != null) {
+              Throwable cause = (exception instanceof java.util.concurrent.CompletionException)
+                  ? exception.getCause()
+                  : exception;
+
+              if (cause instanceof java.io.IOException &&
+                  (cause.getMessage() != null && (cause.getMessage().contains("Broken pipe")
+                      || cause.getMessage().contains("Connection reset")))) {
+                logger.info("Client cancelled request. Stopping stream gracefully.");
+              } else {
+                logger.error("Stream failed due to a server error: " + cause.getMessage());
+                cause.printStackTrace();
+              }
+            } else {
+              logger.info("Stream payload sent successfully!");
+            }
+
             try {
               outputStream.close();
               exchange.close();
             } catch (Exception e) {
-              e.printStackTrace();
             }
           });
 

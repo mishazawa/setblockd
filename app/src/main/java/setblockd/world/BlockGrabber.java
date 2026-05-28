@@ -3,7 +3,10 @@ package setblockd.world;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChunkSnapshot;
@@ -35,43 +38,54 @@ public class BlockGrabber implements PayloadStreamer {
       return chain;
     }
 
+    final AtomicReference<Throwable> abortReason = new AtomicReference<>(null);
+
     logger.info("Grabbing from " + context.world() + "...");
     int minChunkX = context.minX() >> 4;
     int maxChunkX = context.maxX() >> 4;
     int minChunkZ = context.minZ() >> 4;
     int maxChunkZ = context.maxZ() >> 4;
     logger.info("Starting sequential chunk-by-chunk stream...");
+
     for (int cx = minChunkX; cx <= maxChunkX; cx++) {
       for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+
         final int fcx = cx;
         final int fcz = cz;
         ChunkPos chunkPos = new ChunkPos(cx, cz);
-        chain = chain.thenCompose(v -> world.getChunkAtAsync(fcx, fcz, true)
-            .thenCompose(chunk -> {
-              int bottom = chunk.getWorld().getMinHeight();
-              int top = chunk.getWorld().getMaxHeight();
 
-              ChunkSnapshot snapshot = chunk.getChunkSnapshot(true, false, false, false);
+        chain = chain.thenCompose(v -> {
+          // abort if previous chunk fail
+          if (abortReason.get() != null) {
+            return CompletableFuture.failedFuture(abortReason.get());
+          }
+          return world.getChunkAtAsync(fcx, fcz, true);
+        }).thenCompose(chunk -> {
+          // same: abort if previous chunk fail
+          if (abortReason.get() != null) {
+            return CompletableFuture.failedFuture(abortReason.get());
+          }
 
-              CompletableFuture<Void> chunkProcessingFuture = new CompletableFuture<>();
-              Tasks.async(() -> {
-                try {
-                  List<StructureBlock> blocks = grabChunkData(snapshot, context, bottom, top);
-                  encoder.encode(output, chunkPos, blocks);
-                  chunkProcessingFuture.complete(null);
-                } catch (Throwable t) {
-                  chunkProcessingFuture.completeExceptionally(t);
-                }
-              });
-              return chunkProcessingFuture;
-            }).exceptionally(ex -> {
-              logger.warning("Error");
-              ex.printStackTrace();
-              return null;
-            }));
+          int bottom = chunk.getWorld().getMinHeight();
+          int top = chunk.getWorld().getMaxHeight();
+
+          ChunkSnapshot snapshot = chunk.getChunkSnapshot(true, false, false, false);
+
+          CompletableFuture<Void> chunkProcessingFuture = new CompletableFuture<>();
+          Tasks.async(() -> {
+            try {
+              List<StructureBlock> blocks = grabChunkData(snapshot, context, bottom, top);
+              encoder.encode(output, chunkPos, blocks);
+              chunkProcessingFuture.complete(null);
+            } catch (Throwable t) {
+              abortReason.compareAndSet(null, t);
+              chunkProcessingFuture.completeExceptionally(t);
+            }
+          });
+          return chunkProcessingFuture;
+        });
       }
     }
-    chain.thenRun(() -> logger.info("Sequential chunk stream completed successfully!"));
     return chain;
   }
 
