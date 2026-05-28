@@ -8,7 +8,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 
-import setblockd.SetBlockPlugin;
 import setblockd.data_utils.ChunkPos;
 import setblockd.data_utils.StructureBlock;
 import setblockd.network.PayloadReceiver;

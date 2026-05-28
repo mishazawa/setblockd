@@ -15,8 +15,11 @@ import java.util.stream.Collectors;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import setblockd.data_utils.EncoderContext;
+import setblockd.data_utils.GrabberContext;
 import setblockd.data_utils.ParserContext;
-import setblockd.data_utils.StreamContext;
+import setblockd.data_utils.encoders.BinaryEncoder;
+import setblockd.data_utils.encoders.CsvEncoder;
 import setblockd.data_utils.parsers.BinaryParser;
 import setblockd.data_utils.parsers.CsvParser;
 
@@ -169,6 +172,14 @@ public class NetworkServer {
     if (gatekeepRequest("GET", exchange))
       return;
 
+    String payloadType = exchange.getRequestHeaders().getFirst("X-Payload-Type");
+
+    if (!ValidHeader.PAYLOAD_TYPE.isValid(payloadType)) {
+      exchange.sendResponseHeaders(400, -1);
+      exchange.close();
+      return;
+    }
+
     String query = exchange.getRequestURI().getQuery();
     Map<String, String> params = UrlUtils.parseQueryString(query);
 
@@ -180,6 +191,16 @@ public class NetworkServer {
       exchange.sendResponseHeaders(405, -1);
       exchange.close();
       return;
+    }
+
+    var ec = new EncoderContext(null);
+
+    if ("csv".equals(payloadType)) {
+      ec.setStrategy(new CsvEncoder());
+    }
+
+    if ("bin".equals(payloadType)) {
+      ec.setStrategy(new BinaryEncoder());
     }
 
     try {
@@ -198,7 +219,8 @@ public class NetworkServer {
 
       payloadStreamer.streamPayload(
           outputStream,
-          new StreamContext(worldName, minX, minZ, maxX, maxZ)).thenRun(() -> {
+          new GrabberContext(worldName, minX, minZ, maxX, maxZ),
+          ec).thenRun(() -> {
             try {
               outputStream.close();
               exchange.close();

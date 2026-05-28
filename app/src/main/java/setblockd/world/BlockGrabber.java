@@ -12,24 +12,22 @@ import org.bukkit.World;
 
 import java.util.logging.Logger;
 
-import setblockd.SetBlockPlugin;
 import setblockd.data_utils.ChunkPos;
-import setblockd.data_utils.StreamContext;
+import setblockd.data_utils.EncoderContext;
+import setblockd.data_utils.GrabberContext;
 import setblockd.data_utils.StructureBlock;
-import setblockd.data_utils.encoders.BinaryEncoder;
-import setblockd.data_utils.encoders.StructureEncoder;
 import setblockd.network.PayloadStreamer;
 
 public class BlockGrabber implements PayloadStreamer {
   private Logger logger;
-  private final StructureEncoder encoder = new BinaryEncoder();
 
   public BlockGrabber(Logger logger) {
     this.logger = logger;
   }
 
   @Override
-  public CompletableFuture<Void> streamPayload(OutputStream output, StreamContext context) throws Exception {
+  public CompletableFuture<Void> streamPayload(OutputStream output, GrabberContext context, EncoderContext encoder)
+      throws Exception {
     CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
     World world = Bukkit.getWorld(context.world());
     if (world == null) {
@@ -42,7 +40,6 @@ public class BlockGrabber implements PayloadStreamer {
     int maxChunkX = context.maxX() >> 4;
     int minChunkZ = context.minZ() >> 4;
     int maxChunkZ = context.maxZ() >> 4;
-
     logger.info("Starting sequential chunk-by-chunk stream...");
     for (int cx = minChunkX; cx <= maxChunkX; cx++) {
       for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
@@ -78,7 +75,7 @@ public class BlockGrabber implements PayloadStreamer {
     return chain;
   }
 
-  private List<StructureBlock> grabChunkData(ChunkSnapshot snapshot, StreamContext context, int bottom, int top) {
+  private List<StructureBlock> grabChunkData(ChunkSnapshot snapshot, GrabberContext context, int bottom, int top) {
     List<StructureBlock> capturedBlocks = new ArrayList<>();
     int startX = snapshot.getX() << 4;
     int startZ = snapshot.getZ() << 4;

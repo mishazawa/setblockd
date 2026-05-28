@@ -70,3 +70,4 @@ GET http://localhost:8082/getblock
 &sizex=20
 &sizez=20
 Authorization: Basic user:password
+X-Payload-Type: bin
