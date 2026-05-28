@@ -33,3 +33,6 @@ Grab world region and generate csv. For debug and reference.
 
 This code map point color to defined palette using CIELAB formula. To be run in Python SOP.
 
+## Atlas generator
+
+Glue all textures in folder and creates csv file with coordinates.
