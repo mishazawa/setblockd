@@ -139,7 +139,7 @@ public class NetworkServer {
       exchange.getResponseHeaders().set("WWW-Authenticate", "Basic realm=\"setblockd\"");
       exchange.sendResponseHeaders(401, -1);
       exchange.close();
-      logger.warn("Unauthorized structure upload attempt from {}", exchange.getRemoteAddress());
+      logger.warn("Unauthorized request from {}", exchange.getRemoteAddress());
       return true;
     }
     return false;
