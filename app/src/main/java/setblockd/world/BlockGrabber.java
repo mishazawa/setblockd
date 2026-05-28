@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
+import org.bukkit.ChunkSnapshot;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.data.BlockData;
 
 import java.util.logging.Logger;
 
+import setblockd.SetBlockPlugin;
 import setblockd.data_utils.ChunkPos;
 import setblockd.data_utils.StreamContext;
 import setblockd.data_utils.StructureBlock;
@@ -50,15 +50,23 @@ public class BlockGrabber implements PayloadStreamer {
         final int fcz = cz;
         ChunkPos chunkPos = new ChunkPos(cx, cz);
         chain = chain.thenCompose(v -> world.getChunkAtAsync(fcx, fcz, true)
-            .thenAccept(chunk -> {
-              List<StructureBlock> blocks = grabSingleChunkSnapshot(chunk, context);
-              try {
-                encoder.encode(output, chunkPos, blocks);
-              } catch (Exception e) {
-                logger.warning("Error");
-                e.printStackTrace();
-              }
+            .thenCompose(chunk -> {
+              int bottom = chunk.getWorld().getMinHeight();
+              int top = chunk.getWorld().getMaxHeight();
 
+              ChunkSnapshot snapshot = chunk.getChunkSnapshot(true, false, false, false);
+
+              CompletableFuture<Void> chunkProcessingFuture = new CompletableFuture<>();
+              Tasks.async(() -> {
+                try {
+                  List<StructureBlock> blocks = grabChunkData(snapshot, context, bottom, top);
+                  encoder.encode(output, chunkPos, blocks);
+                  chunkProcessingFuture.complete(null);
+                } catch (Throwable t) {
+                  chunkProcessingFuture.completeExceptionally(t);
+                }
+              });
+              return chunkProcessingFuture;
             }).exceptionally(ex -> {
               logger.warning("Error");
               ex.printStackTrace();
@@ -70,15 +78,12 @@ public class BlockGrabber implements PayloadStreamer {
     return chain;
   }
 
-  private List<StructureBlock> grabSingleChunkSnapshot(Chunk chunk, StreamContext context) {
+  private List<StructureBlock> grabChunkData(ChunkSnapshot snapshot, StreamContext context, int bottom, int top) {
     List<StructureBlock> capturedBlocks = new ArrayList<>();
-    int minY = chunk.getWorld().getMinHeight();
-    int maxY = chunk.getWorld().getMaxHeight();
+    int startX = snapshot.getX() << 4;
+    int startZ = snapshot.getZ() << 4;
 
-    int startX = chunk.getX() << 4;
-    int startZ = chunk.getZ() << 4;
-
-    for (int y = minY; y < maxY; y++) {
+    for (int y = bottom; y < top; y++) {
 
       for (int z = 0; z < 16; z++) {
         int absoluteZ = startZ + z;
@@ -91,8 +96,7 @@ public class BlockGrabber implements PayloadStreamer {
           if (absoluteX < context.minX() || absoluteX > context.maxX()) {
             continue;
           }
-          BlockData blockData = chunk.getBlock(x, y, z).getBlockData();
-          Material material = blockData.getMaterial();
+          Material material = snapshot.getBlockType(x, y, z);
 
           if (material.isAir()) {
             continue;

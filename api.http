@@ -51,7 +51,7 @@ X-World-Name: world
 
 < ./test_data/0.csv
 
-### bin valid
+### big update
 
 POST http://localhost:8082/setblock
 Authorization: Basic user:password

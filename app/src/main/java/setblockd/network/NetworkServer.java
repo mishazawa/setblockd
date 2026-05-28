@@ -19,7 +19,6 @@ import setblockd.data_utils.ParserContext;
 import setblockd.data_utils.StreamContext;
 import setblockd.data_utils.parsers.BinaryParser;
 import setblockd.data_utils.parsers.CsvParser;
-import setblockd.world.BlockGrabber;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;

@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import setblockd.network.NetworkServer;
 import setblockd.world.BlockGrabber;
 import setblockd.world.BlockPlacer;
+import setblockd.world.Tasks;
 
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +22,7 @@ public class SetBlockPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
+        Tasks.init(this);
         Bukkit.getPluginManager().registerEvents(this, this);
 
         var logger = getSLF4JLogger();
