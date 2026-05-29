@@ -61,6 +61,16 @@ X-World-Name: world
 
 < ./test_data/output.dat
 
+### big update 625 chunks
+
+POST http://localhost:8082/setblock
+Authorization: Basic user:password
+content-type: application/octet-stream
+X-Payload-Type: bin
+X-World-Name: world
+
+< ./test_data/625.dat
+
 ### request chunk
 
 GET http://localhost:8082/getblock

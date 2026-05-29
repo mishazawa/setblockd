@@ -113,7 +113,16 @@ public class NetworkServer {
       logger.info("[/set] Successfully received and routed payload.");
     } catch (IllegalArgumentException e) {
       logger.error("[/set] Error processing incoming payload", e);
-      exchange.sendResponseHeaders(400, -1);
+
+      String errorMessage = e.getMessage();
+      byte[] responseBytes = errorMessage.getBytes(StandardCharsets.UTF_8);
+      exchange.sendResponseHeaders(400, responseBytes.length);
+
+      try (OutputStream os = exchange.getResponseBody()) {
+        os.write(responseBytes);
+      } catch (IOException ioException) {
+        logger.error("Failed to write error response to client", ioException);
+      }
     } catch (Exception e) {
       logger.error("[/set] Error processing incoming payload", e);
       exchange.sendResponseHeaders(500, -1);

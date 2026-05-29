@@ -24,15 +24,20 @@ palette:
 
 clear-world:
 	@echo "==> Removing world..."
-	rm -rf ./server/world
+	rm -rf ./.server/world
 
 gen-minecraft-data:
 	@echo "==> Generating minecraft data..."
 	java -DbundlerMainClass=net.minecraft.data.Main -jar ./.server/paper-26.1.2-65.jar --reports
 
 gen-atlas:
-	@echo "==> Generating atlas..."
+	@echo "==> Extracting block keys..."
+	cat ./.server/generated/reports/blocks.json | jq -r 'keys[]' > ./test_data/minecraft_block_keys.txt
+	
+	@echo "==> Generating atlas directly from keys list..."
 	go run ./utils/texture_atlas.go \
-	-src=./test_data/blocks/matched_textures \
-	-atlas="./test_data/output/blocks.png" \
-	-csv="./test_data/output/coords.csv"
+		-keys="./test_data/minecraft_block_keys.txt" \
+		-src="./test_data/blocks/block" \
+		-atlas="./test_data/output/blocks.png" \
+		-csv="./test_data/output/coords.csv" \
+		-padding=6

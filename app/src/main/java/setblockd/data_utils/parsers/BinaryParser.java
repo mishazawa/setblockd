@@ -43,6 +43,10 @@ public class BinaryParser implements StructureParser {
     int originY = buffer.getInt();
     int originZ = buffer.getInt();
 
+    if (originY < -64 || originY > 319) {
+      throw new IllegalArgumentException("Invalid origin value: " + originY);
+    }
+
     // 4. Structure Dimensions
     int sizeX = buffer.getInt();
     int sizeY = buffer.getInt();

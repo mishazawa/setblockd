@@ -88,3 +88,17 @@ Content-Type: application/octet-stream
 X-Payload-Type: # "bin" or "csv"
 X-World-Name: # destination world
 ```
+
+### Get blocks
+
+#### Request
+```
+GET <HOST>:<PORT>/getblock
+?world_name= # source world
+&minx= # int
+&minz= #int
+&sizex= # int
+&sizez= # int
+Authorization: Basic user:password
+X-Payload-Type: bin
+```
