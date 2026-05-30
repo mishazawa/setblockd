@@ -31,24 +31,29 @@ x,y,z,material
 
 ### binary
 ```
-[magic_number: 4 bytes]    "BLKS"
-[byte: format_version]     Currently 1 (0x01)
-[int: origin_x]            Minimum X coordinate in the world
-[int: origin_y]            Minimum Y coordinate in the world
-[int: origin_z]            Minimum Z coordinate in the world
-[int: size_x]              Width of the structure
-[int: size_y]              Height of the structure
-[int: size_z]              Depth of the structure
-[int: palette_length]      Number of unique materials in the palette
+================================ HEADER =================================
+ [4 bytes]                  Compressed chunk length
+======================= ZLIB COMPRESSION ENVELOPE =======================
+ [magic_number: 4 bytes]    "BLKS"
+ [byte: format_version]     Currently 1 (0x01)
+ [int: origin_x]            Minimum X coordinate in the world
+ [int: origin_y]            Minimum Y coordinate in the world
+ [int: origin_z]            Minimum Z coordinate in the world
+ [int: size_x]              Width of the structure
+ [int: size_y]              Height of the structure
+ [int: size_z]              Depth of the structure
+ [int: palette_length]      Number of unique materials in the palette
 
---- PALETTE DATA (Repeats `palette_length` times) ---
-[short: string_length]     Byte length of the following string
-[string: material_name]    UTF-8 encoded string (e.g., "minecraft:stone")
-... (loops for each material)
+ --- PALETTE DATA (Repeats `palette_length` times) ---
+ [short: string_length]     Byte length of the following string
+ [string: material_name]    UTF-8 encoded string (e.g., "minecraft:stone")
+ ... (loops for each material)
 
---- BLOCK DATA ---
-[int: compressed_size] The length  of the GZIP payload
-[bytes: gzip_payload]  The compressed byte stream
+ --- BLOCK DATA (Implicit length based on size_x * size_y * size_z) ---
+ [short: palette_index]     The uncompressed palette indices for the grid.
+                            Parsed sequentially until the total 3D grid 
+                            volume is satisfied.
+=========================================================================
 
 ```
 #### Notes:
@@ -60,7 +65,9 @@ x,y,z,material
 
 - **Air vs. Skip**: To replace a block with Air, minecraft:air must be added to the palette, and its corresponding valid index (e.g., 0) should be written to the Block Data
 
-Example generator: [wiki/Example-binary-generator](https://github.com/mishazawa/setblockd/wiki/Example-binary-generator)
+Example generator/encoder: [Example-binary-generator](./utils/binary_generator.py)
+
+Example grabber/decoder: [Example-binary-generator](./utils/grab_chunks.py)
 
 ## API
 
@@ -100,5 +107,5 @@ GET <HOST>:<PORT>/getblock
 &sizex= # int
 &sizez= # int
 Authorization: Basic user:password
-X-Payload-Type: bin
+X-Payload-Type: # "bin" or "csv"
 ```

@@ -1,6 +1,6 @@
-import struct
 import os
-import gzip
+import struct
+import zlib
 
 blocks_to_save = [
     (0, -54, 0, "minecraft:stone"),
@@ -47,39 +47,53 @@ for x, y, z, mat in blocks_to_save:
     idx = y_off * (size_x * size_z) + z_off * size_x + x_off
     grid[idx] = material_to_idx[mat]
 
-# 4. Write Binary File
+# --- NEW FORMAT LOGIC ---
+
+# 4. Gather ALL uncompressed file data into a single byte array
+uncompressed_buffer = bytearray()
+
+# Magic Number
+uncompressed_buffer.extend(b"BLKS")
+
+# Version (1 byte, unsigned)
+uncompressed_buffer.extend(struct.pack(">B", 1))
+
+# Origin (3x int, 12 bytes)
+uncompressed_buffer.extend(struct.pack(">iii", origin_x, origin_y, origin_z))
+
+# Sizes (3x int, 12 bytes)
+uncompressed_buffer.extend(struct.pack(">iii", size_x, size_y, size_z))
+
+# Palette Length (1x int, 4 bytes)
+uncompressed_buffer.extend(struct.pack(">i", len(palette)))
+
+# Palette Entries
+for mat in palette:
+    mat_bytes = mat.encode("utf-8")
+    # Unsigned short (>H) for string length, then string bytes
+    uncompressed_buffer.extend(struct.pack(">H", len(mat_bytes)))
+    uncompressed_buffer.extend(mat_bytes)
+
+# Append raw block shorts right onto the end of the uncompressed data stream
+# No inner length descriptors or inner compression envelopes!
+binary_bytes = struct.pack(f">{len(grid)}h", *grid)
+uncompressed_buffer.extend(binary_bytes)
+
+# 5. Compress the entire data structural envelope using Zlib
+# zlib.compress() generates standard RFC 1950 zlib data (matching Java's InflaterInputStream)
+compressed_chunk = zlib.compress(uncompressed_buffer)
+
+# 6. Write to File (Simulating your multi-chunk HTTP response output)
 with open(file_path, "wb") as f:
-    # Magic Number
-    f.write(b"BLKS")
+    # Prefix the entry with its absolute compressed byte length
+    # This keeps your sequential stream parser entirely synchronized!
+    f.write(struct.pack(">I", len(compressed_chunk)))
 
-    # Version (1 byte, unsigned)
-    f.write(struct.pack(">B", 1))
-
-    # Origin (3x int, 12 bytes)
-    f.write(struct.pack(">iii", origin_x, origin_y, origin_z))
-
-    # Sizes (3x int, 12 bytes)
-    f.write(struct.pack(">iii", size_x, size_y, size_z))
-
-    # Palette Length (1x int, 4 bytes)
-    f.write(struct.pack(">i", len(palette)))
-
-    # Palette Entries
-    for mat in palette:
-        mat_bytes = mat.encode("utf-8")
-        # Unsigned short (>H) for string length, then string bytes
-        f.write(struct.pack(">H", len(mat_bytes)))
-        f.write(mat_bytes)
-
-    binary_bytes = struct.pack(f">{len(grid)}h", *grid)  # format >...h for short
-    compressed_bytes = gzip.compress(binary_bytes)
-    # write length of compressed voxels
-    f.write(struct.pack(">I", len(compressed_bytes)))
-    # write binary
-    f.write(compressed_bytes)
+    # Write the actual Zlib package payload
+    f.write(compressed_chunk)
 
 print(f"OK. Bounding Box: {size_x}x{size_y}x{size_z}.")
+print(f"Total blocks in payload: {total_blocks} ({len(blocks_to_save)} explicit).")
 print(
-    f"Total blocks in payload: {total_blocks} ({len(blocks_to_save)} explicit, {total_blocks - len(blocks_to_save)} skipped)."
+    f"Compressed chunk size (including size header): {len(compressed_chunk) + 4} bytes."
 )
-print(f"Palette size: {len(palette)} unique materials.")

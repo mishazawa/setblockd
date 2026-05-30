@@ -1,10 +1,10 @@
 import argparse
 import csv
-import gzip
-import io
 import struct
+import zlib
 import requests
 
+# Global Constants matching our new format
 MAGIC_NUMBER = b"BLKS"
 FORMAT_VERSION = 1
 
@@ -33,7 +33,7 @@ class BlockStreamClient:
 
 
 class BlockBinaryParser:
-    """Parses the binary format from a stream and yields individual blocks."""
+    """Parses the new length-prefixed Zlib format from a stream and yields blocks."""
 
     def __init__(self, raw_stream):
         self.raw_stream = raw_stream
@@ -42,45 +42,74 @@ class BlockBinaryParser:
     def parse(self):
         """Generates blocks one by one: yields (x, y, z, material)."""
         while True:
-            magic = self.raw_stream.read(4)
-            if not magic:
+            # 1. Read the Strategy A Strategy Header (4-byte unsigned int size prefix)
+            size_header = self.raw_stream.read(4)
+            if not size_header:
                 print("\nReached end of stream.")
                 break
 
+            chunk_size = struct.unpack(">I", size_header)[0]
+
+            self.file_count += 1
+            print(
+                f"Parsing file #{self.file_count}... (Chunk size: {chunk_size} bytes)",
+                end="\r",
+            )
+
+            # 2. Read exactly chunk_size bytes to guarantee we don't bleed into the next chunk
+            compressed_payload = self.raw_stream.read(chunk_size)
+            if len(compressed_payload) < chunk_size:
+                raise ValueError(
+                    "Stream cut short: Received fewer bytes than chunk_size specified."
+                )
+
+            # 3. Decompress the entire file envelope using Zlib
+            decompressed_data = zlib.decompress(compressed_payload)
+
+            # Using byte offsets to parse values out of the uncompressed memory block
+            offset = 0
+
+            # 4. Parse Header Magic & Version
+            magic = decompressed_data[offset : offset + 4]
+            offset += 4
             if magic != MAGIC_NUMBER:
                 raise ValueError(f"Invalid magic number: {magic}.")
 
-            self.file_count += 1
-            print(f"Parsing file #{self.file_count}...", end="\r")
-
-            # Parse metadata
-            version = struct.unpack(">B", self.raw_stream.read(1))[0]
+            version = struct.unpack_from(">B", decompressed_data, offset)[0]
+            offset += 1
             if version != FORMAT_VERSION:
                 raise ValueError(f"Unsupported format version: {version}")
 
-            metadata_bytes = self.raw_stream.read(28)
+            # 5. Parse Structural Geometry Bounds
             origin_x, origin_y, origin_z, size_x, size_y, size_z, palette_length = (
-                struct.unpack(">7i", metadata_bytes)
+                struct.unpack_from(">7i", decompressed_data, offset)
             )
+            offset += 28
 
-            # Parse palette
+            # 6. Parse Palette Table
             palette = {}
             for _ in range(palette_length):
-                str_len = struct.unpack(">h", self.raw_stream.read(2))[0]
-                material_name = self.raw_stream.read(str_len).decode("utf-8")
+                str_len = struct.unpack_from(">H", decompressed_data, offset)[
+                    0
+                ]  # Unsigned short matching java writeShort
+                offset += 2
+
+                material_name = decompressed_data[offset : offset + str_len].decode(
+                    "utf-8"
+                )
+                offset += str_len
+
                 palette[len(palette)] = material_name
 
-            # Decompress block payloads
-            compressed_size = struct.unpack(">i", self.raw_stream.read(4))[0]
-            gzip_payload = self.raw_stream.read(compressed_size)
+            # 7. Unpack Block Grid Data
+            # Total size is calculated explicitly from bounding values
+            total_blocks = size_x * size_y * size_z
+            block_ids = struct.unpack_from(
+                f">{total_blocks}h", decompressed_data, offset
+            )
+            # offset += total_blocks * 2 (not strictly needed since we are at the end)
 
-            with gzip.GzipFile(fileobj=io.BytesIO(gzip_payload), mode="rb") as f:
-                decompressed_block_data = f.read()
-
-            num_blocks = len(decompressed_block_data) // 2
-            block_ids = struct.unpack(f">{num_blocks}h", decompressed_block_data)
-
-            # Process 3D Grid coordinates
+            # 8. Process 3D Grid coordinates (Matches Java's flattening layer loop)
             idx = 0
             for y in range(size_y):
                 world_y = origin_y + y

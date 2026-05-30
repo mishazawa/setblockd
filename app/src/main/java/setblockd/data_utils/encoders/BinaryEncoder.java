@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.zip.GZIPOutputStream;
+import java.util.zip.DeflaterOutputStream;
 
 import org.bukkit.Material;
 
@@ -24,90 +24,92 @@ public class BinaryEncoder implements StructureEncoder {
 
   @Override
   public void encode(OutputStream out, ChunkPos chunk, List<StructureBlock> data) throws Exception {
-    DataOutputStream dos = new DataOutputStream(out);
+    byte[] compressedChunkBytes;
 
-    // palette
+    try (
+        ByteArrayOutputStream chunkBuffer = new ByteArrayOutputStream();
+        DeflaterOutputStream zlibOut = new DeflaterOutputStream(chunkBuffer);
+        DataOutputStream dos = new DataOutputStream(zlibOut);) {
 
-    Map<Material, Integer> materialToId = new HashMap<>();
-    List<Material> idToMaterial = new ArrayList<>();
+      // palette
 
-    for (StructureBlock block : data) {
-      Material material = block.material();
-      if (!materialToId.containsKey(material)) {
-        materialToId.put(material, materialToId.size());
-        idToMaterial.add(material);
+      Map<Material, Integer> materialToId = new HashMap<>();
+      List<Material> idToMaterial = new ArrayList<>();
+
+      for (StructureBlock block : data) {
+        Material material = block.material();
+        if (!materialToId.containsKey(material)) {
+          materialToId.put(material, materialToId.size());
+          idToMaterial.add(material);
+        }
       }
-    }
 
-    // bounds
+      // bounds
 
-    int minY = WORLD_MIN_Y;
-    int sizeY = WORLD_HEIGHT;
+      int minY = WORLD_MIN_Y;
+      int sizeY = WORLD_HEIGHT;
 
-    int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-    int sizeX = Integer.MIN_VALUE, sizeZ = Integer.MIN_VALUE;
+      int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+      int sizeX = Integer.MIN_VALUE, sizeZ = Integer.MIN_VALUE;
 
-    for (StructureBlock block : data) {
-      minX = Math.min(minX, block.x());
-      minZ = Math.min(minZ, block.z());
-      sizeX = Math.max(sizeX, block.x());
-      sizeZ = Math.max(sizeZ, block.z());
-    }
+      for (StructureBlock block : data) {
+        minX = Math.min(minX, block.x());
+        minZ = Math.min(minZ, block.z());
+        sizeX = Math.max(sizeX, block.x());
+        sizeZ = Math.max(sizeZ, block.z());
+      }
 
-    sizeX = data.isEmpty() ? 0 : (sizeX - minX + 1);
-    sizeY = data.isEmpty() ? 0 : (sizeY - minY + 1);
-    sizeZ = data.isEmpty() ? 0 : (sizeZ - minZ + 1);
+      sizeX = data.isEmpty() ? 0 : (sizeX - minX + 1);
+      sizeY = data.isEmpty() ? 0 : (sizeY - minY + 1);
+      sizeZ = data.isEmpty() ? 0 : (sizeZ - minZ + 1);
 
-    // header
-    dos.write(MAGIC_NUMBER);
-    dos.writeByte(FORMAT_VERSION);
-    dos.writeInt(minX);
-    dos.writeInt(minY);
-    dos.writeInt(minZ);
-    dos.writeInt(sizeX);
-    dos.writeInt(sizeY);
-    dos.writeInt(sizeZ);
+      // header
+      dos.write(MAGIC_NUMBER);
+      dos.writeByte(FORMAT_VERSION);
+      dos.writeInt(minX);
+      dos.writeInt(minY);
+      dos.writeInt(minZ);
+      dos.writeInt(sizeX);
+      dos.writeInt(sizeY);
+      dos.writeInt(sizeZ);
 
-    // palette table
-    dos.writeInt(idToMaterial.size());
-    for (Material material : idToMaterial) {
-      byte[] materialBytes = material.toString().getBytes(StandardCharsets.UTF_8);
-      dos.writeShort((short) materialBytes.length);
-      dos.write(materialBytes);
-    }
+      // palette table
+      dos.writeInt(idToMaterial.size());
+      for (Material material : idToMaterial) {
+        byte[] materialBytes = material.toString().getBytes(StandardCharsets.UTF_8);
+        dos.writeShort((short) materialBytes.length);
+        dos.write(materialBytes);
+      }
 
-    // grid
-    int totalBlocks = sizeX * sizeY * sizeZ;
-    short[] blockGrid = new short[totalBlocks];
-    java.util.Arrays.fill(blockGrid, SKIP_FLAG);
+      // grid
+      int totalBlocks = sizeX * sizeY * sizeZ;
+      short[] blockGrid = new short[totalBlocks];
+      java.util.Arrays.fill(blockGrid, SKIP_FLAG);
 
-    for (StructureBlock block : data) {
-      int localX = block.x() - minX;
-      int localY = block.y() - minY;
-      int localZ = block.z() - minZ;
+      for (StructureBlock block : data) {
+        int localX = block.x() - minX;
+        int localY = block.y() - minY;
+        int localZ = block.z() - minZ;
 
-      int index = localX + (localZ * sizeX) + (localY * sizeX * sizeZ);
+        int index = localX + (localZ * sizeX) + (localY * sizeX * sizeZ);
 
-      short paletteId = materialToId.get(block.material()).shortValue();
-      blockGrid[index] = paletteId;
-    }
-
-    // compress
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    try (GZIPOutputStream gzos = new GZIPOutputStream(baos);
-        DataOutputStream blockDos = new DataOutputStream(gzos)) {
+        short paletteId = materialToId.get(block.material()).shortValue();
+        blockGrid[index] = paletteId;
+      }
 
       for (short blockVal : blockGrid) {
-        blockDos.writeShort(blockVal);
+        dos.writeShort(blockVal);
       }
+
+      dos.flush();
+      zlibOut.finish();
+      compressedChunkBytes = chunkBuffer.toByteArray();
     }
 
-    // write grid
-    byte[] compressedPayload = baos.toByteArray();
-    dos.writeInt(compressedPayload.length);
-    dos.write(compressedPayload);
-
-    dos.flush();
+    DataOutputStream httpDos = new DataOutputStream(out);
+    httpDos.writeInt(compressedChunkBytes.length);
+    httpDos.write(compressedChunkBytes);
+    httpDos.flush(); // leave open
   }
 
 }
