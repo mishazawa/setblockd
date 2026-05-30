@@ -40,14 +40,25 @@ public class BlockPlacer implements PayloadReceiver {
 
       world.getChunkAtAsync(chunkPos.x(), chunkPos.z(), true)
           .thenAccept(chunk -> {
-            Location chunkLocation = chunk.getBlock(0, chunk.getWorld().getMinHeight(), 0).getLocation();
+
+            int minHeight = chunk.getWorld().getMinHeight();
+            int maxHeight = chunk.getWorld().getMaxHeight();
+            Location chunkLocation = chunk.getBlock(0, minHeight, 0).getLocation();
 
             Tasks.ouputToRegion(chunkLocation, () -> {
               for (StructureBlock b : blocksInChunk) {
+
+                int targetY = b.y();
+
+                // skip the block if it's out of bounds
+                if (targetY < minHeight || targetY >= maxHeight) {
+                  continue;
+                }
+
                 // relative coordinates
                 int relX = b.x() & 15;
                 int relZ = b.z() & 15;
-                chunk.getBlock(relX, b.y(), relZ).setType(b.material(), false);
+                chunk.getBlock(relX, targetY, relZ).setType(b.material(), false);
               }
 
               world.refreshChunk(chunkPos.x(), chunkPos.z());

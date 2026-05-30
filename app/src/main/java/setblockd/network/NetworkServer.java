@@ -112,7 +112,7 @@ public class NetworkServer {
 
       logger.info("[/set] Successfully received and routed payload.");
     } catch (IllegalArgumentException e) {
-      logger.error("[/set] Error processing incoming payload", e);
+      logger.info("[/set] Error processing incoming payload", e);
 
       String errorMessage = e.getMessage();
       byte[] responseBytes = errorMessage.getBytes(StandardCharsets.UTF_8);

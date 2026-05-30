@@ -1,5 +1,7 @@
 package setblockd.data_utils.parsers;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -21,10 +23,27 @@ public class BinaryParser implements StructureParser {
   @Override
   public Map<ChunkPos, List<StructureBlock>> parse(InputStream input) throws Exception {
 
+    byte[] lengthBytes = new byte[4];
+    int headerBytesRead = input.readNBytes(lengthBytes, 0, 4);
+    if (headerBytesRead < 4) {
+      throw new IllegalArgumentException("Failed to read the 4-byte protocol length header.");
+    }
+
+    int expectedCompressedLength = ByteBuffer.wrap(lengthBytes).getInt();
+
+    byte[] compressedPayload = input.readNBytes(expectedCompressedLength);
+    if (compressedPayload.length != expectedCompressedLength) {
+      throw new IllegalArgumentException(String.format(
+          "Protocol mismatch! Expected %d compressed bytes, but stream ended after %d bytes.",
+          expectedCompressedLength, compressedPayload.length));
+    }
+
     byte[] decompressedPayload;
-    try (InflaterInputStream zlibStream = new InflaterInputStream(input)) {
+    try (ByteArrayInputStream byteStream = new ByteArrayInputStream(compressedPayload);
+        InflaterInputStream zlibStream = new InflaterInputStream(byteStream)) {
       decompressedPayload = zlibStream.readAllBytes();
     }
+
     ByteBuffer buffer = ByteBuffer.wrap(decompressedPayload).order(ByteOrder.BIG_ENDIAN);
 
     int fileSignature = buffer.getInt();
